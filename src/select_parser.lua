@@ -86,7 +86,7 @@ function parseSelect(stmt)
   return result
 end
 
--- Test
+-- Test function
 --[[
 for i,v in ipairs(input) do
   local result = parse_select(v)
