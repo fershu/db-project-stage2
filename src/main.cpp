@@ -257,6 +257,73 @@ void insert_into(lua_State* L)
     cout << "done." << endl;
 }
 
+void select (lua_State* L)
+{
+	// 20150424 This partition is doing the extraction from the parsing. After I realize the map function in c++, the variation "test" will be replaced to another name,
+	// e.g "target-list"or "table-name". 
+	int command_num = lua_objlen(L,-1);
+	for (auto i=2;i<=command_num;i++){
+		lua_rawgeti(L,-1,i);
+		int check_elem = lua_objlen(L,-1);
+		if (i==2) {													//distinguish from "SELECT"(i=2), "From"(i=3), and "Where" query(i=4)
+			for (auto j=1;j<=check_elem;j++){
+				lua_rawgeti(L,-1,j);			
+				if (j>=2){
+					int check_subelem = lua_objlen(L,-1);
+					for (auto k=1;k<=check_subelem;k++) {
+						lua_rawgeti(L,-1,k);
+						 auto test = string(lua_tostring(L, -1));
+						cout << test << endl;
+						lua_pop(L,1);
+					}
+				} else {
+					auto opt = string(lua_tostring(L, -1)); 		// opt = COUNT or SUM or attr 
+					cout << opt << endl;
+					
+				}
+				lua_pop(L,1);
+			} 
+		} else if (i==3) {			
+			for (auto j=1;j<=check_elem;j++){
+				lua_rawgeti(L,-1,j);
+				int check_subelem = lua_objlen(L,-1);
+				for (auto k=1;k<=check_subelem;k++) {
+					lua_rawgeti(L,-1,k);
+					auto test = string(lua_tostring(L, -1));
+					cout << test << endl;
+					lua_pop(L,1);
+				}
+				lua_pop(L,1);
+			}
+		} else {
+			for (auto j=1;j<=check_elem;j++){
+				lua_rawgeti(L,-1,j);
+				int check_subelem = lua_objlen(L,-1);
+				if (j==2){
+					auto logical_op = string(lua_tostring(L, -1));  // logical_op = "AND" or "OR"
+					cout<<logical_op<<endl;
+				} else {
+					for (auto k=1;k<=check_subelem;k++) {
+						lua_rawgeti(L,-1,k);
+						int check_alias = lua_objlen(L,-1);
+						for (auto it=1;it<=check_alias;it++) {
+							lua_rawgeti(L,-1,it);
+							auto test = string(lua_tostring(L, -1));
+							cout << test << endl;
+							lua_pop(L,1);
+						}
+						lua_pop(L,1);
+					}
+				}
+				lua_pop(L,1);
+			}
+			
+		}
+		lua_pop(L,1);
+	}
+	
+}
+
 void print_tables()
 {
     cout << endl << "Tables:" << endl;
@@ -510,6 +577,7 @@ int main(int argc, char* argv[])
                 } else if (op == "SELECT") {
                     // TODO
 					printf("SELECT is not yet implemented!\n");
+					select(L);
                 } else {
                     cout << "Unknown operation " << op << endl;
                 }
