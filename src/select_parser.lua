@@ -61,8 +61,8 @@ local     op_cmp           = sp(Cc('eq')*P'=')
                            + sp(Cc('ne')*P'<>')
                            + sp(Cc('lt')*P'<')
                            + sp(Cc('gt')*P'>')
-local     expr             = attr_name + str + int
-local   bool_expr        = Ct(expr * op_cmp * expr)
+local     expr             = attr_name + Ct(str) + Ct(int)
+local   bool_expr        = Ct(expr * Ct(op_cmp) * expr)
 local   op_bool          = sp(C(P'AND')) + sp(C(P'OR'))
 local where_clause     = Ct(P'WHERE' * bool_expr * (op_bool * bool_expr)^-1)
 
