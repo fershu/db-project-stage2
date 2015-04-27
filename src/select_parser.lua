@@ -52,7 +52,7 @@ local attr_name        = sp(Ct((prefix * '.') ^ -1 * attr))
 local   count_fun        = sp(C(P'COUNT') * sp('(') * ( attr_name + asterisk ) * sp(')'))
 local   sum_fun          = sp(C(P'SUM')   * sp('(') * ( attr_name + asterisk ) * sp(')'))
 local   attr_list        = sp(Cc'ATTR' * attr_name * ( ',' * attr_name ) ^ 0)
-local target_list      = Ct(count_fun + sum_fun + attr_list + asterisk)
+local target_list      = Ct(count_fun + sum_fun + attr_list + Cc'null'*asterisk)
 
 local   table_entry      = Ct(table_name * ( 'AS' * alias ) ^ -1)
 local table_list       = Ct(table_entry * ( ',' * table_entry ) ^ 0)
