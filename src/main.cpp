@@ -13,9 +13,9 @@ using namespace std;
 struct Table
 {
     vector<string> attrname;
-    map<string, int> attrsize;
-    map<string, multimap<string, int>> attrvar_i;
-    map<string, vector<string>> attrvar;
+    map<string, int> attrsize;// 2. define the BookName type
+    map<string, multimap<string, int>> attrvar_i; //1.map<Name, multimap<Jack, back 1>>
+    map<string, vector<string>> attrvar; // 3.map<bookname, 1> output: ICE
     map<string, multimap<int, int>> attrint_i;
     map<string, vector<int>> attrint;
     string primkey;
@@ -262,36 +262,64 @@ void select (lua_State* L)
 	// 20150424 This partition is doing the extraction from the parsing. After I realize the map function in c++, the variation "test" will be replaced to another name,
 	// e.g "target-list"or "table-name". 
 	int command_num = lua_objlen(L,-1);
+	string SEL_alias[5];
+	string SEL_target[5];
+	string From_table_name[2];
+	string From_alias[2];
 	for (auto i=2;i<=command_num;i++){
 		lua_rawgeti(L,-1,i);
 		int check_elem = lua_objlen(L,-1);
 		if (i==2) {													//distinguish from "SELECT"(i=2), "From"(i=3), and "Where" query(i=4)
 			for (auto j=1;j<=check_elem;j++){
+				int in=0; 											// "in" uses in store the name in SEL_alias and SEL_target
 				lua_rawgeti(L,-1,j);			
 				if (j>=2){
 					int check_subelem = lua_objlen(L,-1);
 					for (auto k=1;k<=check_subelem;k++) {
-						lua_rawgeti(L,-1,k);
-						 auto test = string(lua_tostring(L, -1));
+						if (k==1){
+							lua_rawgeti(L,-1,k);
+							SEL_alias[in] = string(lua_tostring(L, -1));
+							lua_pop(L,1);
+							in = in+1;
+						} else{
+							lua_rawgeti(L,-1,k);
+							SEL_target[in] = string(lua_tostring(L, -1));
+							lua_pop(L,1);
+							in = in+1;
+						}
+						/*lua_rawgeti(L,-1,k);
+						 auto test = string(lua_tostring(L, -1));  //Transfer to string value
 						cout << test << endl;
-						lua_pop(L,1);
+						lua_pop(L,1);*/
 					}
 				} else {
-					auto opt = string(lua_tostring(L, -1)); 		// opt = COUNT or SUM or attr 
-					cout << opt << endl;
-					
+					auto opt = string(lua_tostring(L, -1)); 		// opt = COUNT or SUM or attr or null
+					/*cout << opt << endl;*/
 				}
 				lua_pop(L,1);
 			} 
 		} else if (i==3) {			
 			for (auto j=1;j<=check_elem;j++){
 				lua_rawgeti(L,-1,j);
+				int in =0;
 				int check_subelem = lua_objlen(L,-1);
 				for (auto k=1;k<=check_subelem;k++) {
-					lua_rawgeti(L,-1,k);
+					if (k==1){
+						lua_rawgeti(L,-1,k);
+						From_table_name[in] = string(lua_tostring(L, -1));
+						lua_pop(L,1);
+						in = in +1;
+					}else {
+						lua_rawgeti(L,-1,k);
+						From_alias[in] = string(lua_tostring(L, -1));
+						lua_pop(L,1);
+						in = in +1;
+					}
+					/*lua_rawgeti(L,-1,k);
 					auto test = string(lua_tostring(L, -1));
 					cout << test << endl;
 					lua_pop(L,1);
+					*/
 				}
 				lua_pop(L,1);
 			}
@@ -372,160 +400,7 @@ void print_tables()
 
 int main(int argc, char* argv[])
 {
-	// choosing the operation of input the file or do the commend 
-	/*
-	int choosing_numb;
-	cout << "Please enter your choice: 1. Input file 2. Type the SQL 3. Automatically run";
-	cin >> choosing_numb;
-	while (choosing_numb){
-		if (choosing_numb == 1){
-			char* inputfilename = nullptr;
-			if (argc <2) {
-				cout << "Usage: " << argv[0] << " <Input File>" << endl;
-				return 0;				
-			} else {
-				inputfilename = argv[1];
-			}
-			
-			lua_State *L = luaL_newstate();
-			luaL_openlibs(L);
-			
-			int status = luaL_loadfile(L, "src/parser.lua");
-			if (status) {
-				// If something went wrong, error message is at the top of 
-				// the stack 
-				cout << lua_tostring(L, -1) << endl;
-				exit(1);				
-			}
-			int result = lua_pcall(L, 0, 1, 0);
-			if (result) {
-				cout << lua_tostring(L, -1) << endl;
-				lua_pop(L, 1);
-			}
-			
-			lua_getglobal(L, "parseCommand");
-			lua_pushnil(L);
-			lua_pushstring(L, inputfilename);
-			
-			result = lua_pcall(L, 2, 1, 0);
-			
-			if (result) {
-				cout << lua_tostring(L, -1) << endl;
-				lua_pop(L, 1);
-			} else {
-				int command_num = lua_objlen(L, -1);
-				for (auto i = 1; i <= command_num; i++) {
-					// Get a command
-					lua_rawgeti(L, -1, i);
-					// Get operation
-					lua_pushstring(L, "op");
-					lua_rawget(L, -2);
-					auto op = string(lua_tostring(L, -1));
-					lua_pop(L, 1);
-					if (op == "CREATE TABLE") {
-						cout << "Creating table...";
-						create_table(L);
-					} else if (op == "INSERT INTO") {
-						cout << "Inserting row...";
-						insert_into(L);
-					} else if (op == "SELECT") {
-						// TODO
-						printf("SELECT is not yet implemented!\n");
-					} else {
-						cout << "Unknown operation " << op << endl;
-					}
-					// Pop command
-					lua_pop(L, 1);
-				}
-				// Pop command list
-				lua_pop(L, 1);
-			}
-
-			print_tables();
-			cout << "\n>> ";
-			
-		} else if (choosing_numb == 2 || choosing_numb == 3 ){
-			lua_State *L = luaL_newstate();
-			luaL_openlibs(L);
-
-			int status = luaL_loadfile(L, "src/parser.lua");
-			if (status) {
-				// If something went wrong, error message is at the top of 
-				// the stack 
-				cout << lua_tostring(L, -1) << endl;
-				exit(1);
-			}
-			int result = lua_pcall(L, 0, 1, 0);
-			if (result) {
-				cout << lua_tostring(L, -1) << endl;
-				lua_pop(L, 1);
-			}
-			
-			string buf;
-			std::getline (std::cin, buf);
-			if(buf[0] == 'q') {
-				return 0;
-			} else {
-				lua_getglobal(L, "parseCommand");
-				lua_pushstring(L, buf.c_str());
-				lua_pushnil(L);
-			}
-			while (1) {
-				result = lua_pcall(L, 2, 1, 0);
-				if (result) {
-					cout << lua_tostring(L, -1) << endl;
-					lua_pop(L, 1);
-				} else {
-					int command_num = lua_objlen(L, -1);
-					for (auto i = 1; i <= command_num; i++) {
-						// Get a command
-						lua_rawgeti(L, -1, i);
-						// Get operation
-						lua_pushstring(L, "op");
-						lua_rawget(L, -2);
-						auto op = string(lua_tostring(L, -1));
-						lua_pop(L, 1);
-						if (op == "CREATE TABLE") {
-							cout << "Creating table...";
-							create_table(L);
-						} else if (op == "INSERT INTO") {
-							cout << "Inserting row...";
-							insert_into(L);
-						} else if (op == "SELECT") {
-							// TODO
-							printf("SELECT is not yet implemented!\n");
-						} else {
-							cout << "Unknown operation " << op << endl;
-						}
-						// Pop command
-						lua_pop(L, 1);
-					}		
-					// Pop command list
-					lua_pop(L, 1);
-				}
-
-				print_tables();
-
-				cout << "\n>> ";
-				string buf;
-				std::getline (std::cin, buf);
-				if(buf[0] == 'q') {
-					return 0;
-				} else {
-					lua_getglobal(L, "parseCommand");
-					lua_pushstring(L, buf.c_str());
-					lua_pushnil(L);
-				}
-			}
-		}	
-		cout << "Please enter your choice: 1. Input file 2. Type the SQL 3. Automatically run";
-		cin >> choosing_numb;
-	
-	}		
-}
-*/	
-
-    char* inputfilename = nullptr;
+	char* inputfilename = nullptr;
     if (argc < 2) {
         cout << "Usage: " << argv[0] << " <Input File>" << endl;
         return 0;
@@ -595,7 +470,14 @@ int main(int argc, char* argv[])
         std::getline (std::cin, buf);
         if(buf[0] == 'q') {
             return 0;
-        } else {
+        }else if (buf[0] == '1') {
+			lua_getglobal(L, "parseCommand");
+			lua_pushnil(L);
+			std::getline (std::cin, buf);
+			lua_pushstring(L, buf.c_str());
+			
+		}
+		else {
             lua_getglobal(L, "parseCommand");
             lua_pushstring(L, buf.c_str());
             lua_pushnil(L);
