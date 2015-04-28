@@ -360,6 +360,94 @@ void select (lua_State* L)
     }
 }
 
+
+/* Caution: The attrname should be in uppercase! */
+struct Table* new_table(vector<string> attrname, vector<int> attrsize)
+{
+    /* Attribute must have both name and size */
+    assert(attrname.size() == attrsize.size());
+
+    struct Table *currtable = new Table();
+    /* Attribute names */
+    currtable->attrname = attrname;
+    /* Attribute sizes */
+    for(auto i = 0; i < currtable->attrname.size(); i++) {
+        currtable->attrsize[currtable->attrname[i]] = attrsize[i];
+    }
+    /* Number of rows */
+    currtable->rownum = 0;
+
+    return currtable;
+}
+
+/* Caution:
+ *   Provide the values in schema order!
+ *   Use push_back() on int_v and str_v in order!
+ *   Check insert_into() for more information.
+ */
+void new_row(struct Table* table, deque<int> int_v, deque<string> str_v)
+{
+    struct Table* currtable = table;
+
+    /* Must provide right number of values */
+    assert(currtable->attrsize.size() == int_v.size() + str_v.size());
+
+    /* Insert the row now */
+    for(string attr_name: currtable->attrname) {
+        if (currtable->attrsize[attr_name] == -1) {
+            currtable->attrint[attr_name].push_back(int_v.front());
+            currtable->attrint_i[attr_name].insert(
+                pair<int,int>(int_v.front(), currtable->attrint.size()-1));
+            int_v.pop_front();
+        } else {
+            currtable->attrvar[attr_name].push_back(str_v.front());
+            currtable->attrvar_i[attr_name].insert(
+                pair<string,int>(str_v.front(), currtable->attrvar.size()-1));
+            str_v.pop_front();
+        }
+    }
+    /* Increment row number */
+    currtable->rownum++;
+}
+
+void print_table(struct Table *table)
+{
+    // Print attributes
+    for(auto str:table->attrname) {
+        if (str == table->primkey)
+            printf("%15s*(%2d)", str.c_str(), table->attrsize[str]);
+        else
+            printf("%16s(%2d)", str.c_str(), table->attrsize[str]);
+    }
+    cout << endl;
+    // Print each row
+    // Cache the types to make it efficient
+    vector<int> attr_size;
+    deque<vector<int>> attr_int;
+    deque<vector<string>> attr_var;
+    for(auto str:table->attrname) {
+        attr_size.push_back(table->attrsize[str]);
+        if (attr_size.back() == -1)
+            attr_int.push_back(table->attrint[str]);
+        else
+            attr_var.push_back(table->attrvar[str]);
+    }
+    for(int i = 0; i < table->rownum; i++) {
+        for(int j = 0; j < attr_size.size(); j++) {
+            if (attr_size[j] == -1) {
+                printf("%20d", attr_int.front()[i]);
+                attr_int.push_back(attr_int.front());
+                attr_int.pop_front();
+            } else {
+                printf("%20s", attr_var.front()[i].c_str());
+                attr_var.push_back(attr_var.front());
+                attr_var.pop_front();
+            }
+        }
+        cout << endl;
+    }
+}
+
 void print_tables()
 {
     cout << endl << "Tables:" << endl;
