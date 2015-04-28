@@ -261,9 +261,15 @@ void select (lua_State* L)
 {
 	// 20150424 This partition is doing the extraction from the parsing. After I realize the map function in c++, the variation "test" will be replaced to another name,
 	// e.g "target-list"or "table-name". 
+	struct Table* currtable = nullptr;
+	vector<string> attr_list;
+    deque<string> str_v;
+    deque<int> int_v;
+		
 	int command_num = lua_objlen(L,-1);
-	string SEL_alias[5];
-	string SEL_target[5];
+	
+	string SEL_alias[5];  				// include '*'
+	string SEL_target[5];				// all select target list
 	string From_table_name[2];
 	string From_alias[2];
 	for (auto i=2;i<=command_num;i++){
@@ -349,7 +355,9 @@ void select (lua_State* L)
 		}
 		lua_pop(L,1);
 	}
-	
+	if(tables.find(From_table_name[0]) != tables.end()) {
+        currtable = tables[From_table_name[0]];
+    }
 }
 
 void print_tables()
@@ -470,7 +478,7 @@ int main(int argc, char* argv[])
         std::getline (std::cin, buf);
         if(buf[0] == 'q') {
             return 0;
-        }else if (buf[0] == '1') {
+        }else if (buf[0] == 'inf') {
 			lua_getglobal(L, "parseCommand");
 			lua_pushnil(L);
 			std::getline (std::cin, buf);
