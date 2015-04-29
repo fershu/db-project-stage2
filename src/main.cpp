@@ -345,11 +345,7 @@ void print_table(struct Table *table)
 }
 
 void select (lua_State* L)
-{
-	// 20150424 This partition is doing the extraction from the parsing. After I realize the map function in c++, the variation "test" will be replaced to another name,
-	// e.g "target-list"or "table-name". 
-	
-		
+{	
 	int command_num = lua_objlen(L,-1);
 	
 	vector<string> SEL_alias;   				// include '*'
@@ -358,6 +354,18 @@ void select (lua_State* L)
 	
 	vector<string> From_table_name;			
 	vector<string> From_alias;
+	
+	vector<string> where_condition_first_alias; // it can be alias name, which occurs in this condition(where_condition_first_attrname is not empty), or attribute name.
+	vector<string> where_condition_first_attrname;
+	vector<string> where_condition_second_alias;
+	vector<string> where_condition_second_attrname;
+	vector<string> logical_op;
+	string op_flag_first;
+	string op_flag_second;
+	string compare_char_first;
+	string compare_char_second;
+	int compare_int_first;
+	int compare_int_second;
 	
 	
 	for (auto i=2;i<=command_num;i++){
@@ -378,14 +386,9 @@ void select (lua_State* L)
 							SEL_target.push_back(string(lua_tostring(L, -1)));
 							lua_pop(L,1);
 						}
-						/*lua_rawgeti(L,-1,k);
-						 auto test = string(lua_tostring(L, -1));  //Transfer to string value
-						cout << test << endl;
-						lua_pop(L,1);*/
 					}
 				} else {
 					opt.push_back(string(lua_tostring(L, -1))); 		// opt = COUNT or SUM or attr or null
-					/*cout << opt << endl;*/
 				}
 				lua_pop(L,1);
 			} 
@@ -419,9 +422,31 @@ void select (lua_State* L)
 						int check_alias = lua_objlen(L,-1);
 						for (auto it=1;it<=check_alias;it++) {
 							lua_rawgeti(L,-1,it);
-							auto test = string(lua_tostring(L, -1));
-							//cout << test << endl;
-							lua_pop(L,1);
+							if (j ==1 && k==1 && it ==1){
+								where_condition_first_alias.push_back((lua_tostring(L, -1)));
+								lua_pop(L,1);
+							}else if (j == 1 && k==1 && it ==2){
+								where_condition_first_attrname.push_back((lua_tostring(L, -1)));
+								lua_pop(L,1);
+							}else if (j == 1 && k==2 && it == 1){
+								op_flag_first = lua_tostring(L, -1);
+								lua_pop(L,1);
+							}else if (j == 1 && k==3 && it ==1){
+								compare_char_first = lua_tostring(L, -1);
+								lua_pop(L,1);
+							}else if (j ==3 && k==1 && it ==1){
+								where_condition_second_alias.push_back((lua_tostring(L, -1)));
+								lua_pop(L,1);
+							}else if (j==3 && k ==1 && it ==2){
+								where_condition_second_attrname.push_back((lua_tostring(L, -1)));
+								lua_pop(L,1);
+							}else if (j==3 && k ==2 && it ==1){
+								op_flag_second = lua_tostring(L, -1);
+								lua_pop(L,1);
+							}else if (j==3 && k ==3 && it ==1){
+								compare_char_second = lua_tostring(L, -1);
+								lua_pop(L,1);
+							}
 						}
 						lua_pop(L,1);
 					}
@@ -432,6 +457,8 @@ void select (lua_State* L)
 		}
 		lua_pop(L,1);
 	}
+	
+	/*
 	struct Table* currtable = nullptr;
 	
 	if(tables.find(From_table_name[0]) != tables.end()) {
@@ -446,6 +473,12 @@ void select (lua_State* L)
 	vector<string> tmp_v;
 	
 	
+	
+	
+	
+	
+	//This can run without where condition.
+	/*
 	if (SEL_alias[0] == "*"){
 		// get the table name (From_table_name[0]), finding the table's attrlist and attrsize
 		target_list = currtable->attrname;
@@ -488,6 +521,7 @@ void select (lua_State* L)
 		}
 	}
 	print_table(selecttable);
+	*/
 	
 	
 }
