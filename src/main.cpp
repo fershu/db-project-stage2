@@ -5,6 +5,7 @@
 #include <map>
 #include <deque>
 #include <cstdint>
+#include <cassert>
 
 #include "lua.hpp"
 
@@ -256,111 +257,6 @@ void insert_into(lua_State* L)
     currtable->rownum++;
     cout << "done." << endl;
 }
-
-void select (lua_State* L)
-{
-	// 20150424 This partition is doing the extraction from the parsing. After I realize the map function in c++, the variation "test" will be replaced to another name,
-	// e.g "target-list"or "table-name". 
-	struct Table* currtable = nullptr;
-	vector<string> attr_list;
-    deque<string> str_v;
-    deque<int> int_v;
-		
-	int command_num = lua_objlen(L,-1);
-	
-	string SEL_alias[5];  				// include '*'
-	string SEL_target[5];				// all select target list
-	string From_table_name[2];
-	string From_alias[2];
-	for (auto i=2;i<=command_num;i++){
-		lua_rawgeti(L,-1,i);
-		int check_elem = lua_objlen(L,-1);
-		if (i==2) {													//distinguish from "SELECT"(i=2), "From"(i=3), and "Where" query(i=4)
-			for (auto j=1;j<=check_elem;j++){
-				int in=0; 											// "in" uses in store the name in SEL_alias and SEL_target
-				lua_rawgeti(L,-1,j);			
-				if (j>=2){
-					int check_subelem = lua_objlen(L,-1);
-					for (auto k=1;k<=check_subelem;k++) {
-						if (k==1){
-							lua_rawgeti(L,-1,k);
-							SEL_alias[in] = string(lua_tostring(L, -1));
-							lua_pop(L,1);
-							in = in+1;
-						} else{
-							lua_rawgeti(L,-1,k);
-							SEL_target[in] = string(lua_tostring(L, -1));
-							lua_pop(L,1);
-							in = in+1;
-						}
-						/*lua_rawgeti(L,-1,k);
-						 auto test = string(lua_tostring(L, -1));  //Transfer to string value
-						cout << test << endl;
-						lua_pop(L,1);*/
-					}
-				} else {
-					auto opt = string(lua_tostring(L, -1)); 		// opt = COUNT or SUM or attr or null
-					/*cout << opt << endl;*/
-				}
-				lua_pop(L,1);
-			} 
-		} else if (i==3) {			
-			for (auto j=1;j<=check_elem;j++){
-				lua_rawgeti(L,-1,j);
-				int in =0;
-				int check_subelem = lua_objlen(L,-1);
-				for (auto k=1;k<=check_subelem;k++) {
-					if (k==1){
-						lua_rawgeti(L,-1,k);
-						From_table_name[in] = string(lua_tostring(L, -1));
-						lua_pop(L,1);
-						in = in +1;
-					}else {
-						lua_rawgeti(L,-1,k);
-						From_alias[in] = string(lua_tostring(L, -1));
-						lua_pop(L,1);
-						in = in +1;
-					}
-					/*lua_rawgeti(L,-1,k);
-					auto test = string(lua_tostring(L, -1));
-					cout << test << endl;
-					lua_pop(L,1);
-					*/
-				}
-				lua_pop(L,1);
-			}
-		} else {
-			for (auto j=1;j<=check_elem;j++){
-				lua_rawgeti(L,-1,j);
-				int check_subelem = lua_objlen(L,-1);
-				if (j==2){
-					auto logical_op = string(lua_tostring(L, -1));  // logical_op = "AND" or "OR"
-					cout<<logical_op<<endl;
-				} else {
-					for (auto k=1;k<=check_subelem;k++) {
-						lua_rawgeti(L,-1,k);
-						int check_alias = lua_objlen(L,-1);
-						for (auto it=1;it<=check_alias;it++) {
-							lua_rawgeti(L,-1,it);
-							auto test = string(lua_tostring(L, -1));
-							cout << test << endl;
-							lua_pop(L,1);
-						}
-						lua_pop(L,1);
-					}
-				}
-				lua_pop(L,1);
-			}
-			
-		}
-		lua_pop(L,1);
-	}
-	if(tables.find(From_table_name[0]) != tables.end()) {
-        currtable = tables[From_table_name[0]];
-    }
-}
-
-
 /* Caution: The attrname should be in uppercase! */
 struct Table* new_table(vector<string> attrname, vector<int> attrsize)
 {
@@ -447,6 +343,157 @@ void print_table(struct Table *table)
         cout << endl;
     }
 }
+
+void select (lua_State* L)
+{
+	// 20150424 This partition is doing the extraction from the parsing. After I realize the map function in c++, the variation "test" will be replaced to another name,
+	// e.g "target-list"or "table-name". 
+	
+		
+	int command_num = lua_objlen(L,-1);
+	
+	vector<string> SEL_alias;   				// include '*'
+	vector<string> SEL_target;					// all select target list
+	vector<string> opt;
+	
+	vector<string> From_table_name;			
+	vector<string> From_alias;
+	
+	
+	for (auto i=2;i<=command_num;i++){
+		lua_rawgeti(L,-1,i);
+		int check_elem = lua_objlen(L,-1);
+		if (i==2) {													//distinguish from "SELECT"(i=2), "From"(i=3), and "Where" query(i=4)
+			for (auto j=1;j<=check_elem;j++){
+				lua_rawgeti(L,-1,j);			
+				if (j>=2){
+					int check_subelem = lua_objlen(L,-1);
+					for (auto k=1;k<=check_subelem;k++) {
+						if (k==1){
+							lua_rawgeti(L,-1,k);
+							SEL_alias.push_back(string(lua_tostring(L, -1)));
+							lua_pop(L,1);
+						} else{
+							lua_rawgeti(L,-1,k);
+							SEL_target.push_back(string(lua_tostring(L, -1)));
+							lua_pop(L,1);
+						}
+						/*lua_rawgeti(L,-1,k);
+						 auto test = string(lua_tostring(L, -1));  //Transfer to string value
+						cout << test << endl;
+						lua_pop(L,1);*/
+					}
+				} else {
+					opt.push_back(string(lua_tostring(L, -1))); 		// opt = COUNT or SUM or attr or null
+					/*cout << opt << endl;*/
+				}
+				lua_pop(L,1);
+			} 
+		} else if (i==3) {			
+			for (auto j=1;j<=check_elem;j++){
+				lua_rawgeti(L,-1,j);
+				int check_subelem = lua_objlen(L,-1);
+				for (auto k=1;k<=check_subelem;k++) {
+					if (k==1){
+						lua_rawgeti(L,-1,k);
+						From_table_name.push_back(string(lua_tostring(L, -1)));
+						lua_pop(L,1);
+					}else {
+						lua_rawgeti(L,-1,k);
+						From_table_name.push_back(string(lua_tostring(L, -1)));
+						lua_pop(L,1);
+					}
+				}
+				lua_pop(L,1);
+			}
+		} else {
+			for (auto j=1;j<=check_elem;j++){
+				lua_rawgeti(L,-1,j);
+				int check_subelem = lua_objlen(L,-1);
+				if (j==2){
+					auto logical_op = string(lua_tostring(L, -1));  // logical_op = "AND" or "OR"
+					cout<<logical_op<<endl;
+				} else {
+					for (auto k=1;k<=check_subelem;k++) {
+						lua_rawgeti(L,-1,k);
+						int check_alias = lua_objlen(L,-1);
+						for (auto it=1;it<=check_alias;it++) {
+							lua_rawgeti(L,-1,it);
+							auto test = string(lua_tostring(L, -1));
+							//cout << test << endl;
+							lua_pop(L,1);
+						}
+						lua_pop(L,1);
+					}
+				}
+				lua_pop(L,1);
+			}
+			
+		}
+		lua_pop(L,1);
+	}
+	struct Table* currtable = nullptr;
+	
+	if(tables.find(From_table_name[0]) != tables.end()) {
+        currtable = tables[From_table_name[0]];
+    }
+	vector<string> target_list;   // name of target_list;
+	vector<int> target_size;	  // size of target_list;
+    deque<string> str_v;
+    deque<int> int_v;
+	map<string,string> alias_name_to_table;				//{key,value} = {alias, table_name};
+	vector<int> tmp_i;									// in order to transform vector to deque
+	vector<string> tmp_v;
+	
+	
+	if (SEL_alias[0] == "*"){
+		// get the table name (From_table_name[0]), finding the table's attrlist and attrsize
+		target_list = currtable->attrname;
+		int target_list_number = target_list.size();
+		for (int in =0; in<target_list_number; in++){
+			int value = currtable-> attrsize[target_list[in]];
+			target_size.push_back(value);
+		}
+	}else{
+		int target_number = SEL_alias.size();
+		for (int i=0;i<target_number;i++){
+			auto tmp = SEL_alias[i];
+			target_list.push_back(tmp);
+			int value = currtable-> attrsize[tmp];
+			target_size.push_back(value);
+		}
+	}
+	auto selecttable = new_table(target_list,target_size);
+	int target_list_number = target_list.size();
+
+	for(int i = 0; i < currtable->rownum; i++) {
+		for(int in =0; in< target_list_number; in++){
+			int value = target_size[in];
+			if (value == -1){
+				tmp_i = currtable->attrint[target_list[in]];
+				int_v.push_back(tmp_i[i]);
+			}else{
+				tmp_v = currtable->attrvar[target_list[in]];
+				str_v.push_back(tmp_v[i]);
+			}
+		}
+		new_row(selecttable, int_v, str_v);
+		for(int in =0; in< target_list_number; in++){
+			int value = target_size[in];
+			if (value == -1){
+				int_v.pop_front();
+			}else{
+				str_v.pop_front();
+			}
+		}
+	}
+	print_table(selecttable);
+	
+	
+}
+
+
+
 
 void print_tables()
 {
@@ -566,7 +613,7 @@ int main(int argc, char* argv[])
         std::getline (std::cin, buf);
         if(buf[0] == 'q') {
             return 0;
-        }else if (buf[0] == 'inf') {
+        }else if (buf[0] == 'i') {
 			lua_getglobal(L, "parseCommand");
 			lua_pushnil(L);
 			std::getline (std::cin, buf);
@@ -582,4 +629,3 @@ int main(int argc, char* argv[])
 
     lua_close(L);
 }
-
