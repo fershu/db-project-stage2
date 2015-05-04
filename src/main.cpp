@@ -246,12 +246,12 @@ void insert_into(lua_State* L)
         if (currtable->attrsize[attr_name] == -1) {
             currtable->attrint[attr_name].push_back(int_v.front());
             currtable->attrint_i[attr_name].insert(
-                pair<int,int>(int_v.front(), currtable->rownum+1));
+                pair<int,int>(int_v.front(), currtable->rownum));
             int_v.pop_front();
         } else {
             currtable->attrvar[attr_name].push_back(str_v.front());
             currtable->attrvar_i[attr_name].insert(
-                pair<string,int>(str_v.front(), currtable->rownum+1));
+                pair<string,int>(str_v.front(), currtable->rownum));
             str_v.pop_front();
         }
     }
@@ -294,12 +294,12 @@ void new_row(struct Table* table, deque<int> int_v, deque<string> str_v)
         if (currtable->attrsize[attr_name] == -1) {
             currtable->attrint[attr_name].push_back(int_v.front());
             currtable->attrint_i[attr_name].insert(
-                pair<int,int>(int_v.front(), currtable->rownum+1));
+                pair<int,int>(int_v.front(), currtable->rownum));
             int_v.pop_front();
         } else {
             currtable->attrvar[attr_name].push_back(str_v.front());
             currtable->attrvar_i[attr_name].insert(
-                pair<string,int>(str_v.front(), currtable->rownum+1));
+                pair<string,int>(str_v.front(), currtable->rownum));
             str_v.pop_front();
         }
     }
