@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <deque>
 #include <cstdint>
 #include <cassert>
@@ -245,12 +246,12 @@ void insert_into(lua_State* L)
         if (currtable->attrsize[attr_name] == -1) {
             currtable->attrint[attr_name].push_back(int_v.front());
             currtable->attrint_i[attr_name].insert(
-                pair<int,int>(int_v.front(), currtable->attrint.size()-1));
+                pair<int,int>(int_v.front(), currtable->rownum+1));
             int_v.pop_front();
         } else {
             currtable->attrvar[attr_name].push_back(str_v.front());
             currtable->attrvar_i[attr_name].insert(
-                pair<string,int>(str_v.front(), currtable->attrvar.size()-1));
+                pair<string,int>(str_v.front(), currtable->rownum+1));
             str_v.pop_front();
         }
     }
@@ -293,12 +294,12 @@ void new_row(struct Table* table, deque<int> int_v, deque<string> str_v)
         if (currtable->attrsize[attr_name] == -1) {
             currtable->attrint[attr_name].push_back(int_v.front());
             currtable->attrint_i[attr_name].insert(
-                pair<int,int>(int_v.front(), currtable->attrint.size()-1));
+                pair<int,int>(int_v.front(), currtable->rownum+1));
             int_v.pop_front();
         } else {
             currtable->attrvar[attr_name].push_back(str_v.front());
             currtable->attrvar_i[attr_name].insert(
-                pair<string,int>(str_v.front(), currtable->attrvar.size()-1));
+                pair<string,int>(str_v.front(), currtable->rownum+1));
             str_v.pop_front();
         }
     }
@@ -350,17 +351,22 @@ void select (lua_State* L)
 	
 	vector<string> SEL_alias;   				// include '*'
 	vector<string> SEL_target;					// all select target list
-	vector<string> opt;
+	vector<string> opt;							// function_opt = COUNT or SUM
 	
 	vector<string> From_table_name;			
 	vector<string> From_alias;
-	
+	/* The example for all variation: e.g WHERE authorId = 1 OR pages < 200; 
+	   check_where_num=2; where_condition_first_alias = authorId; op_flag_first = "eq";compare_int_first = 1;
+	   logical_op = OR;
+	   where_condition_second_alias = pages; second = "lt"; compare_int_second = 200
+	*/
+	vector<int>	check_where_num;
 	vector<string> where_condition_first_alias; // it can be alias name, which occurs in this condition(where_condition_first_attrname is not empty), or attribute name.
 	vector<string> where_condition_first_attrname;
 	vector<string> where_condition_second_alias;
 	vector<string> where_condition_second_attrname;
-	vector<string> logical_op;
-	string op_flag_first;
+	vector<string> logical_op;			
+	string op_flag_first;				
 	string op_flag_second;
 	string compare_char_first;
 	string compare_char_second;
@@ -413,9 +419,9 @@ void select (lua_State* L)
 			for (auto j=1;j<=check_elem;j++){
 				lua_rawgeti(L,-1,j);
 				int check_subelem = lua_objlen(L,-1);
+				check_where_num.push_back(check_elem);
 				if (j==2){
-					auto logical_op = string(lua_tostring(L, -1));  // logical_op = "AND" or "OR"
-					cout<<logical_op<<endl;
+					logical_op.push_back(string(lua_tostring(L, -1)));  // logical_op = "AND" or "OR"
 				} else {
 					for (auto k=1;k<=check_subelem;k++) {
 						lua_rawgeti(L,-1,k);
@@ -457,8 +463,27 @@ void select (lua_State* L)
 		}
 		lua_pop(L,1);
 	}
+	// define check_where_number
+	int wii = check_where_num.empty();
+	int lii = logical_op.empty();
+	if(wii ==1){
+		check_where_num.push_back(0);
+	}else if(wii !=1 && lii!=1){
+		check_where_num[0] = check_where_num[0] -1;
+	}
 	
-	/*
+	// mapping alias to table name
+	map<string,string> alias_name_to_table;				//{key,value} = {alias, table_name};
+	int table_number = From_table_name.size();
+	int alias_number = From_alias.size();
+	if (alias_number != 0){
+		for (int i =0;i<table_number;i++){
+			alias_name_to_table.insert({From_alias[i],From_table_name[i]});
+		}
+	}
+	
+	
+	
 	struct Table* currtable = nullptr;
 	
 	if(tables.find(From_table_name[0]) != tables.end()) {
@@ -468,11 +493,258 @@ void select (lua_State* L)
 	vector<int> target_size;	  // size of target_list;
     deque<string> str_v;
     deque<int> int_v;
-	map<string,string> alias_name_to_table;				//{key,value} = {alias, table_name};
 	vector<int> tmp_i;									// in order to transform vector to deque
 	vector<string> tmp_v;
 	
+	if(check_where_num[0]==0){
+		if (SEL_alias[0] == "*"){
+			
+			// get the table name (From_table_name[0]), finding the table's attrlist and attrsize
+			target_list = currtable->attrname;
+			int target_list_number = target_list.size();
+			for (int in =0; in<target_list_number; in++){
+				int value = currtable-> attrsize[target_list[in]];
+				target_size.push_back(value);
+			}
+		}else{
+			int target_number = SEL_alias.size();
+			for (int i=0;i<target_number;i++){
+				auto tmp = SEL_alias[i];
+				target_list.push_back(tmp);
+				int value = currtable-> attrsize[tmp];
+				target_size.push_back(value);
+			}
+		}
+		auto selecttable = new_table(target_list,target_size);
+		int target_list_number = target_list.size();
+
+		for(int i = 0; i < currtable->rownum; i++) {
+			for(int in =0; in< target_list_number; in++){
+				int value = target_size[in];
+				if (value == -1){
+					tmp_i = currtable->attrint[target_list[in]];
+					int_v.push_back(tmp_i[i]);
+				}else{
+					tmp_v = currtable->attrvar[target_list[in]];
+					str_v.push_back(tmp_v[i]);
+				}
+			}
+			new_row(selecttable, int_v, str_v);
+			for(int in =0; in< target_list_number; in++){
+				int value = target_size[in];
+				if (value == -1){
+					int_v.pop_front();
+				}else{
+					str_v.pop_front();
+				}
+			}
+		}
+		print_table(selecttable);
+	}
+	else if (check_where_num[0]==1){
+		// Create Selected target table
+		if (SEL_alias[0] == "*"){
+			// get the table name (From_table_name[0]), finding the table's attrlist and attrsize
+			target_list = currtable->attrname;
+			int target_list_number = target_list.size();
+			for (int in =0; in<target_list_number; in++){
+				int value = currtable-> attrsize[target_list[in]];
+				target_size.push_back(value);
+			}
+		}else{
+			int target_number = SEL_alias.size();
+			for (int i=0;i<target_number;i++){
+				auto tmp = SEL_alias[i];
+				target_list.push_back(tmp);
+				int value = currtable-> attrsize[tmp];
+				target_size.push_back(value);
+			}
+		}
+		auto selecttable = new_table(target_list,target_size);
+		
+		// Finding the index and Doing Where condition transform(char to int)
+		int target_list_number = target_list.size();
+		string attr_tmp = where_condition_first_alias[0];
+		int value = currtable-> attrsize[attr_tmp];
+		multimap<int,int>::iterator it,itlow,itup,eqit;
+		vector<int> index_i;
+		multimap<int,int> second (currtable-> attrint_i["bookId"]);
+		cout <<"Finding element 2's index value: " <<second.find(2)->second << endl;
+		cout <<"Finding element 10's index value: " <<second.find(10)->second << endl;
+		it = second.find(11);
+		if (it == second.end()){
+			cout <<"cannot find the value 11"<<endl;
+		}
+		second.insert(make_pair(11,10));
+		cout <<"Finding element 11's index value: " <<second.find(11)->second << endl;
+		/*
+		if (value== -1){
+			compare_int_first = (int)compare_char_first[0]-48;
+			if (op_flag_first == "eq"){
+				eqit = currtable-> attrint_i[attr_tmp].find(compare_int_first);
+				int test = (*eqit).second;
+				cout << test <<endl;
+				index_i.push_back(test);//currtable-> attrint_i[attr_tmp].find(compare_int_first)->second);
+				cout << index_i[0]<<endl;
+			}else if (op_flag_first == "gt"){
+				itlow = currtable-> attrint_i[attr_tmp].lower_bound(compare_int_first+1);
+				for (it = itlow; it!=currtable-> attrint_i[attr_tmp].end();++it){
+						index_i.push_back((*it).second);
+					}
+				
+			}else if (op_flag_first == "lt"){
+				itup = currtable-> attrint_i[attr_tmp].upper_bound(compare_int_first-1);
+				for (it = currtable-> attrint_i[attr_tmp].begin();it!=itup; ++it){
+						index_i.push_back((*it).second);
+					}
+			}
+			
+		}
+		else{
+			if (op_flag_first == "eq"){
+				index_i.push_back(currtable-> attrvar_i[attr_tmp].find(compare_char_first)->second);
+			}
+		}
+		//Doing the insertion function
+		int target_number = SEL_alias.size();
+		int index_number = index_i.size();
+		for (int i =0;i<index_number; i++){
+			cout << index_i[i]<< endl;
+		}
+		for (int i=0;i<target_number;i++){
+			for (int j=0; j< index_number; j++){
+				auto tmp = SEL_alias[i];
+				int value = target_size[i];
+				if (value== -1){
+					tmp_i = currtable->attrint[tmp];
+					int tmp_index = index_i[j];
+					int_v.push_back(tmp_i[tmp_index]);
+				}else {
+					tmp_v = currtable->attrvar[tmp];
+					int tmp_index = index_i[j];
+					str_v.push_back(tmp_v[tmp_index]);
+				}
+				new_row(selecttable, int_v, str_v);
+				if (value == -1){
+					int_v.pop_front();
+				}else{
+					str_v.pop_front();
+				}
+			}
+		}
+		print_table(selecttable);
+		*/
+	}
 	
+	/*
+	else if(check_where_num[0]==2){
+		// Create Selected target table
+		if (SEL_alias[0] == "*"||SEL_target[0] == "*"){
+			// get the table name (From_table_name[0]), finding the table's attrlist and attrsize
+			target_list = currtable->attrname;
+			int target_list_number = target_list.size();
+			for (int in =0; in<target_list_number; in++){
+				int value = currtable-> attrsize[target_list[in]];
+				target_size.push_back(value);
+			}
+		}else if(SEL_target[0]== ""){
+			int target_number = SEL_alias.size();
+			for (int i=0;i<target_number;i++){
+				auto tmp = SEL_alias[i];
+				target_list.push_back(tmp);
+				int value = currtable-> attrsize[tmp];
+				target_size.push_back(value);
+			}
+		}else{
+			int target_number = SEL_target.size();
+			for (int i=0;i<target_number;i++){
+				string tmp_combine = SEL_alias[i] +"."+ SEL_target[i];
+				target_list.push_back(tmp_combine);
+				int value = currtable-> attrsize[SEL_target[i]];
+				target_size.push_back(value);
+			}
+		}
+		auto selecttable = new_table(target_list,target_size);
+		
+		// Finding the indexing value and Doing the where condition's value transform
+		int target_list_number = target_list.size();
+		string attr_tmp_fir = where_condition_first_alias[0];
+		string attr_tmp_sec = where_condition_second_alias[0];
+		int value_fir = currtable-> attrsize[attr_tmp_fir];
+		int value_sec = currtable-> attrsize[attr_tmp_sec];
+		multimap<int,int>::iterator it,itlow,itup;
+		set<int> index_i;
+		set<int> :: iterator index_it;
+		
+		if (value_fir== -1){
+			compare_int_first = (int)compare_char_first[0]-48;
+		}
+		else if(value_sec == -1){
+			compare_int_second = (int)compare_char_second[0]-48;
+		}
+		else{
+			compare_char_first = compare_char_first;
+			compare_char_second = compare_char_second;
+		}
+		// Finding the index value and push back to index_i
+		if ( logical_op[0] == "OR"){
+			if (value_fir== -1){
+				if (op_flag_first == "eq"){
+					index_i.insert(currtable-> attrint_i[attr_tmp_fir].find(compare_int_first)->second);
+				}else if (op_flag_first == "gt"){
+					itlow = currtable-> attrint_i[attr_tmp_fir].lower_bound(compare_int_first);
+					for (it = itlow; it!=currtable-> attrint_i[attr_tmp_fir].end();++it){
+						index_i.insert((*it).second);
+					}
+				}else if (op_flag_first == "lt"){
+					itup = currtable-> attrint_i[attr_tmp_fir].upper_bound(compare_int_first);
+					for (it = currtable-> attrint_i[attr_tmp_fir].begin();it!=itup; ++it){
+						index_i.insert((*it).second);
+					}
+				}
+			}else if (value_sec == -1){
+				if (op_flag_second == "eq"){
+					index_i.insert(currtable-> attrint_i[attr_tmp_sec].find(compare_int_second)->second);
+				}else if (op_flag_second == "gt"){
+					itlow = currtable-> attrint_i[attr_tmp_sec].lower_bound(compare_int_second);
+					for (it = itlow; it!=currtable-> attrint_i[attr_tmp_fir].end();++it){
+						index_i.insert((*it).second);
+					}
+				}else if (op_flag_second == "lt"){
+					itup = currtable-> attrint_i[attr_tmp_sec].upper_bound(compare_int_second);
+					for (it = currtable-> attrint_i[attr_tmp_sec].begin();it!=itup; ++it){
+						index_i.insert((*it).second);
+					}
+				}
+			}else {
+				if (op_flag_first == "eq"){
+					index_i.insert(currtable-> attrvar_i[attr_tmp_fir].find(compare_char_first)->second);
+				}
+				else if (op_flag_second == "eq"){
+					index_i.insert(currtable-> attrvar_i[attr_tmp_sec].find(compare_char_second)->second);
+				}
+			}
+			
+			
+			
+			
+			
+			
+		}
+		else if ( logical_op[0] == "AND")
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		print_table(selecttable);
+		
+	}
+*/
 	
 	
 	
@@ -628,7 +900,7 @@ int main(int argc, char* argv[])
                     insert_into(L);
                 } else if (op == "SELECT") {
                     // TODO
-					printf("SELECT is not yet implemented!\n");
+					//printf("SELECT is not yet implemented!\n");
 					select(L);
                 } else {
                     cout << "Unknown operation " << op << endl;
