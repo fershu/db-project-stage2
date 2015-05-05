@@ -7,6 +7,7 @@
 #include <deque>
 #include <cstdint>
 #include <cassert>
+#include <sstream>
 
 #include "lua.hpp"
 
@@ -368,12 +369,16 @@ void select (lua_State* L)
 	vector<string> logical_op;			
 	string op_flag_first;				
 	string op_flag_second;
-	string compare_char_first;
-	string compare_char_second;
+	vector<string> compare_alias_char_first;
+	vector<string> compare_attr_char_first;
+	vector<string> compare_alias_char_second;
+	vector<string> compare_attr_char_second;
 	int compare_int_first;
 	int compare_int_second;
+	// Convert the string to integer
+	stringstream convert_stoi;
 	
-	
+	// Extract the lua parser the command
 	for (auto i=2;i<=command_num;i++){
 		lua_rawgeti(L,-1,i);
 		int check_elem = lua_objlen(L,-1);
@@ -429,16 +434,19 @@ void select (lua_State* L)
 						for (auto it=1;it<=check_alias;it++) {
 							lua_rawgeti(L,-1,it);
 							if (j ==1 && k==1 && it ==1){
-								where_condition_first_alias.push_back((lua_tostring(L, -1)));
+								where_condition_first_alias.push_back(lua_tostring(L, -1));
 								lua_pop(L,1);
 							}else if (j == 1 && k==1 && it ==2){
-								where_condition_first_attrname.push_back((lua_tostring(L, -1)));
+								where_condition_first_attrname.push_back(lua_tostring(L, -1));
 								lua_pop(L,1);
 							}else if (j == 1 && k==2 && it == 1){
 								op_flag_first = lua_tostring(L, -1);
 								lua_pop(L,1);
 							}else if (j == 1 && k==3 && it ==1){
-								compare_char_first = lua_tostring(L, -1);
+								compare_alias_char_first.push_back(lua_tostring(L, -1));
+								lua_pop(L,1);
+							}else if (j == 1 && k==3 && it ==2){
+								compare_attr_char_first.push_back(lua_tostring(L, -1));;
 								lua_pop(L,1);
 							}else if (j ==3 && k==1 && it ==1){
 								where_condition_second_alias.push_back((lua_tostring(L, -1)));
@@ -450,7 +458,10 @@ void select (lua_State* L)
 								op_flag_second = lua_tostring(L, -1);
 								lua_pop(L,1);
 							}else if (j==3 && k ==3 && it ==1){
-								compare_char_second = lua_tostring(L, -1);
+								compare_alias_char_second.push_back(lua_tostring(L, -1));
+								lua_pop(L,1);
+							}else if (j==3 && k ==3 && it ==2){
+								compare_attr_char_second.push_back(lua_tostring(L, -1));
 								lua_pop(L,1);
 							}
 						}
@@ -489,8 +500,9 @@ void select (lua_State* L)
 	if(tables.find(From_table_name[0]) != tables.end()) {
         currtable = tables[From_table_name[0]];
     }
-	vector<string> target_list;   // name of target_list;
-	vector<int> target_size;	  // size of target_list;
+	vector<string> target_list;   			// name of target_list
+	vector<string> target_list_combine;		// name with alias and target_list
+	vector<int> target_size;	  			// size of target_list
     deque<string> str_v;
     deque<int> int_v;
 	vector<int> tmp_i;									// in order to transform vector to deque
@@ -567,25 +579,18 @@ void select (lua_State* L)
 		string attr_tmp = where_condition_first_alias[0];
 		int value = currtable-> attrsize[attr_tmp];
 		multimap<int,int>::iterator it,itlow,itup,eqit;
+		multimap<string,int>::iterator it_var;
 		vector<int> index_i;
-		multimap<int,int> second (currtable-> attrint_i["bookId"]);
-		cout <<"Finding element 2's index value: " <<second.find(2)->second << endl;
-		cout <<"Finding element 10's index value: " <<second.find(10)->second << endl;
-		it = second.find(11);
-		if (it == second.end()){
-			cout <<"cannot find the value 11"<<endl;
-		}
-		second.insert(make_pair(11,10));
-		cout <<"Finding element 11's index value: " <<second.find(11)->second << endl;
-		/*
+		
 		if (value== -1){
-			compare_int_first = (int)compare_char_first[0]-48;
+			convert_stoi << compare_alias_char_first[0];
+			convert_stoi >> compare_int_first;
+
 			if (op_flag_first == "eq"){
-				eqit = currtable-> attrint_i[attr_tmp].find(compare_int_first);
-				int test = (*eqit).second;
-				cout << test <<endl;
-				index_i.push_back(test);//currtable-> attrint_i[attr_tmp].find(compare_int_first)->second);
-				cout << index_i[0]<<endl;
+				for ( it = currtable-> attrint_i[attr_tmp].equal_range(compare_int_first).first; 
+						  it !=currtable-> attrint_i[attr_tmp].equal_range(compare_int_first).second; ++it ){
+							  index_i.push_back((*it).second);
+						  }
 			}else if (op_flag_first == "gt"){
 				itlow = currtable-> attrint_i[attr_tmp].lower_bound(compare_int_first+1);
 				for (it = itlow; it!=currtable-> attrint_i[attr_tmp].end();++it){
@@ -602,15 +607,18 @@ void select (lua_State* L)
 		}
 		else{
 			if (op_flag_first == "eq"){
-				index_i.push_back(currtable-> attrvar_i[attr_tmp].find(compare_char_first)->second);
+				//string tmp;
+				//tmp = compare_alias_char_first[0];
+				for ( it_var = currtable-> attrvar_i[attr_tmp].equal_range(compare_alias_char_first[0]).first; 
+						  it_var !=currtable-> attrvar_i[attr_tmp].equal_range(compare_alias_char_first[0]).second; ++it_var )
+					{
+					  index_i.push_back((*it_var).second);
+					}
 			}
 		}
 		//Doing the insertion function
 		int target_number = SEL_alias.size();
 		int index_number = index_i.size();
-		for (int i =0;i<index_number; i++){
-			cout << index_i[i]<< endl;
-		}
 		for (int i=0;i<target_number;i++){
 			for (int j=0; j< index_number; j++){
 				auto tmp = SEL_alias[i];
@@ -633,10 +641,10 @@ void select (lua_State* L)
 			}
 		}
 		print_table(selecttable);
-		*/
+		// Clear the element in the convert_stoi
+		convert_stoi.str("");
+		convert_stoi.clear();
 	}
-	
-	/*
 	else if(check_where_num[0]==2){
 		// Create Selected target table
 		if (SEL_alias[0] == "*"||SEL_target[0] == "*"){
@@ -655,17 +663,24 @@ void select (lua_State* L)
 				int value = currtable-> attrsize[tmp];
 				target_size.push_back(value);
 			}
-		}else{
+		}else if (SEL_target[0]!="" && SEL_target[0]!= "*"){
 			int target_number = SEL_target.size();
 			for (int i=0;i<target_number;i++){
 				string tmp_combine = SEL_alias[i] +"."+ SEL_target[i];
-				target_list.push_back(tmp_combine);
+				target_list.push_back(SEL_target[i]);
+				target_list_combine.push_back(tmp_combine);
 				int value = currtable-> attrsize[SEL_target[i]];
 				target_size.push_back(value);
 			}
 		}
+		/* Wondering why this cannot compile.
+		if (target_list_combine.size()!=0){
+			auto selecttable = new_table(target_list_combine,target_size);
+		}else{
+			auto selecttable = new_table(target_list,target_size);
+		}
+		*/
 		auto selecttable = new_table(target_list,target_size);
-		
 		// Finding the indexing value and Doing the where condition's value transform
 		int target_list_number = target_list.size();
 		string attr_tmp_fir = where_condition_first_alias[0];
@@ -673,65 +688,113 @@ void select (lua_State* L)
 		int value_fir = currtable-> attrsize[attr_tmp_fir];
 		int value_sec = currtable-> attrsize[attr_tmp_sec];
 		multimap<int,int>::iterator it,itlow,itup;
-		set<int> index_i;
-		set<int> :: iterator index_it;
+		multimap<string,int>::iterator it_var;
 		
 		if (value_fir== -1){
-			compare_int_first = (int)compare_char_first[0]-48;
+			convert_stoi << compare_alias_char_first[0];
+			convert_stoi >> compare_int_first;
+			convert_stoi.str("");
+			convert_stoi.clear();
+			cout <<"compare_int_first's number: "<< compare_int_first<< endl;
 		}
-		else if(value_sec == -1){
-			compare_int_second = (int)compare_char_second[0]-48;
+		
+		if(value_sec == -1){
+			convert_stoi << compare_alias_char_second[0];
+			convert_stoi >> compare_int_second;
+			convert_stoi.str("");
+			convert_stoi.clear();
 		}
-		else{
-			compare_char_first = compare_char_first;
-			compare_char_second = compare_char_second;
-		}
+		
 		// Finding the index value and push back to index_i
 		if ( logical_op[0] == "OR"){
+			set<int> index_i;
+			set<int> :: iterator index_it;
 			if (value_fir== -1){
 				if (op_flag_first == "eq"){
-					index_i.insert(currtable-> attrint_i[attr_tmp_fir].find(compare_int_first)->second);
+					for ( it = currtable-> attrint_i[attr_tmp_fir].equal_range(compare_int_first).first; 
+						  it !=currtable-> attrint_i[attr_tmp_fir].equal_range(compare_int_first).second; ++it ){
+							  index_i.insert((*it).second);
+						  }
 				}else if (op_flag_first == "gt"){
-					itlow = currtable-> attrint_i[attr_tmp_fir].lower_bound(compare_int_first);
+					itlow = currtable-> attrint_i[attr_tmp_fir].lower_bound(compare_int_first+1);
 					for (it = itlow; it!=currtable-> attrint_i[attr_tmp_fir].end();++it){
 						index_i.insert((*it).second);
 					}
-				}else if (op_flag_first == "lt"){
-					itup = currtable-> attrint_i[attr_tmp_fir].upper_bound(compare_int_first);
+				}else {
+					itup = currtable-> attrint_i[attr_tmp_fir].upper_bound(compare_int_first-1);
 					for (it = currtable-> attrint_i[attr_tmp_fir].begin();it!=itup; ++it){
 						index_i.insert((*it).second);
 					}
 				}
-			}else if (value_sec == -1){
+			}else{
+				if (op_flag_first == "eq"){
+					for ( it_var = currtable-> attrvar_i[attr_tmp_fir].equal_range(compare_alias_char_first[0]).first; 
+						  it_var !=currtable-> attrvar_i[attr_tmp_fir].equal_range(compare_alias_char_first[0]).second; ++it_var ){
+							  index_i.insert((*it_var).second);
+						  }
+				}
+			}
+			
+			if (value_sec == -1){
 				if (op_flag_second == "eq"){
+					for ( it = currtable-> attrint_i[attr_tmp_sec].equal_range(compare_int_second).first; 
+						  it !=currtable-> attrint_i[attr_tmp_sec].equal_range(compare_int_second).second; ++it ){
+							  index_i.insert((*it).second);
+						  }
 					index_i.insert(currtable-> attrint_i[attr_tmp_sec].find(compare_int_second)->second);
 				}else if (op_flag_second == "gt"){
-					itlow = currtable-> attrint_i[attr_tmp_sec].lower_bound(compare_int_second);
-					for (it = itlow; it!=currtable-> attrint_i[attr_tmp_fir].end();++it){
+					
+					itlow = currtable-> attrint_i[attr_tmp_sec].lower_bound(compare_int_second+1);
+					for (it = itlow; it!=currtable-> attrint_i[attr_tmp_sec].end();++it){
 						index_i.insert((*it).second);
 					}
-				}else if (op_flag_second == "lt"){
-					itup = currtable-> attrint_i[attr_tmp_sec].upper_bound(compare_int_second);
+				}else {
+					cout <<"compare_int_second's number :" << compare_int_second << endl;
+					itup = currtable-> attrint_i[attr_tmp_sec].upper_bound(compare_int_second-1);
 					for (it = currtable-> attrint_i[attr_tmp_sec].begin();it!=itup; ++it){
 						index_i.insert((*it).second);
 					}
 				}
 			}else {
-				if (op_flag_first == "eq"){
-					index_i.insert(currtable-> attrvar_i[attr_tmp_fir].find(compare_char_first)->second);
-				}
-				else if (op_flag_second == "eq"){
-					index_i.insert(currtable-> attrvar_i[attr_tmp_sec].find(compare_char_second)->second);
+				cout << "attr_tmp_sec's name :" << attr_tmp_sec<<endl;
+				if (op_flag_second == "eq"){
+					for ( it_var = currtable-> attrvar_i[attr_tmp_sec].equal_range(compare_alias_char_second[0]).first; 
+						  it_var !=currtable-> attrvar_i[attr_tmp_sec].equal_range(compare_alias_char_second[0]).second; ++it_var ){
+							  index_i.insert((*it_var).second);
+						  }
 				}
 			}
-			
-			
-			
-			
-			
-			
+			// Insert the element
+			int target_number = target_size.size();
+			int index_number = index_i.size();
+			for (index_it=index_i.begin(); index_it!= index_i.end(); ++index_it){
+				for (int i=0;i<target_number;i++){
+					auto tmp = target_list[i];
+					int value = target_size[i];
+					if (value== -1){
+						tmp_i = currtable->attrint[tmp];
+						int tmp_index = *index_it;
+						int_v.push_back(tmp_i[tmp_index]);
+					}else {
+						tmp_v = currtable->attrvar[tmp];
+						int tmp_index = *index_it;
+						str_v.push_back(tmp_v[tmp_index]);
+					}
+				}
+				new_row(selecttable, int_v, str_v);
+				for (int i=0;i<target_number;i++){
+					int value = target_size[i];
+					if (value == -1){
+						int_v.pop_front();
+					}else{
+						str_v.pop_front();
+					}
+				}
+			}
 		}
-		else if ( logical_op[0] == "AND")
+		//else if ( logical_op[0] == "AND"){
+			
+		//}
 		
 		
 		
@@ -744,56 +807,12 @@ void select (lua_State* L)
 		print_table(selecttable);
 		
 	}
-*/
-	
-	
-	
-	
-	//This can run without where condition.
-	/*
-	if (SEL_alias[0] == "*"){
-		// get the table name (From_table_name[0]), finding the table's attrlist and attrsize
-		target_list = currtable->attrname;
-		int target_list_number = target_list.size();
-		for (int in =0; in<target_list_number; in++){
-			int value = currtable-> attrsize[target_list[in]];
-			target_size.push_back(value);
-		}
-	}else{
-		int target_number = SEL_alias.size();
-		for (int i=0;i<target_number;i++){
-			auto tmp = SEL_alias[i];
-			target_list.push_back(tmp);
-			int value = currtable-> attrsize[tmp];
-			target_size.push_back(value);
-		}
-	}
-	auto selecttable = new_table(target_list,target_size);
-	int target_list_number = target_list.size();
 
-	for(int i = 0; i < currtable->rownum; i++) {
-		for(int in =0; in< target_list_number; in++){
-			int value = target_size[in];
-			if (value == -1){
-				tmp_i = currtable->attrint[target_list[in]];
-				int_v.push_back(tmp_i[i]);
-			}else{
-				tmp_v = currtable->attrvar[target_list[in]];
-				str_v.push_back(tmp_v[i]);
-			}
-		}
-		new_row(selecttable, int_v, str_v);
-		for(int in =0; in< target_list_number; in++){
-			int value = target_size[in];
-			if (value == -1){
-				int_v.pop_front();
-			}else{
-				str_v.pop_front();
-			}
-		}
-	}
-	print_table(selecttable);
-	*/
+	
+	
+	
+	
+	
 	
 	
 }
