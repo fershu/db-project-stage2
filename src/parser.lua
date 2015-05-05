@@ -44,10 +44,8 @@ states = {
       elseif vu == "SELECT" then
         local select_stmt = ""
         local select_cmd
-        while t and t ~= ';' do
-          select_stmt = select_stmt.." "..v
-          t,v = tok()
-        end
+
+        select_stmt = v.." "..lexer.getrest(tok)
         select_cmd = parseSelect(select_stmt)
         if select_cmd then
           table.insert(results, select_cmd)
@@ -301,6 +299,20 @@ states = {
   end
 }
 
+-- Seperate str using c
+local function seperate(str, c)
+  local lpeg = require('lpeg')
+  local match = lpeg.match
+  local P = lpeg.P
+  local C = lpeg.C
+  local Ct = lpeg.Ct
+
+  local seperator = P(c)
+  local rest = C((P(1)-seperator)^0)
+  local all = rest * (seperator * rest)^0 * seperator ^ 0
+  return match(Ct(all), str)
+end
+
 function parseCommand(input, file)
   -- Clear previous result
   results = {}
@@ -309,12 +321,17 @@ function parseCommand(input, file)
     -- Enable line number in error message
     isfile = 1
     filename = file
-    input,err = io.open(file, "r")
+    local f,err = io.open(file, "r")
+    input = f:read("*all")
     if(input == nil) then error(err) end
   else
     isfile = nil
   end
 
-  local tok = lexer.scan(input)
-  return states.start(tok)
+  for i,v in ipairs(seperate(input,';')) do
+    tok = lexer.scan(v)
+    states.start(tok)
+  end
+
+  return results
 end
