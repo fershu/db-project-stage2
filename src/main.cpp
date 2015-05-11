@@ -508,6 +508,8 @@ void select (lua_State* L)
 	vector<int> tmp_i;									// in order to transform vector to deque
 	vector<string> tmp_v;
 	
+
+	
 	if(check_where_num[0]==0){
 		if (SEL_alias[0] == "*"){
 			
@@ -583,6 +585,7 @@ void select (lua_State* L)
 		vector<int> index_i;
 		
 		if (value== -1){
+			// Converting the string to integer if the attribute is the integer
 			convert_stoi << compare_alias_char_first[0];
 			convert_stoi >> compare_int_first;
 
@@ -647,7 +650,7 @@ void select (lua_State* L)
 	}
 	else if(check_where_num[0]==2){
 		// Create Selected target table
-		if (SEL_alias[0] == "*"||SEL_target[0] == "*"){
+		if (SEL_alias[0] == "*"){
 			// get the table name (From_table_name[0]), finding the table's attrlist and attrsize
 			target_list = currtable->attrname;
 			int target_list_number = target_list.size();
@@ -655,7 +658,8 @@ void select (lua_State* L)
 				int value = currtable-> attrsize[target_list[in]];
 				target_size.push_back(value);
 			}
-		}else if(SEL_target[0]== ""){
+		}
+		else if(SEL_target.size() == 0){
 			int target_number = SEL_alias.size();
 			for (int i=0;i<target_number;i++){
 				auto tmp = SEL_alias[i];
@@ -663,7 +667,19 @@ void select (lua_State* L)
 				int value = currtable-> attrsize[tmp];
 				target_size.push_back(value);
 			}
-		}else if (SEL_target[0]!="" && SEL_target[0]!= "*"){
+		}
+		else if (SEL_target[0] == "*"){
+			vector <string> tmp_attr;
+			tmp_attr = currtable->attrname;
+			int target_number = currtable->attrname.size();
+			for (int i=0;i<target_number;i++){
+				string tmp_combine = SEL_alias[0] +"."+ tmp_attr[i];
+				target_list_combine.push_back(tmp_combine);
+				int value = currtable-> attrsize[tmp_attr[i]];
+				target_size.push_back(value);
+			}
+		}
+		else if (SEL_target.size()!= 0 && SEL_target[0]!= "*"){
 			int target_number = SEL_target.size();
 			for (int i=0;i<target_number;i++){
 				string tmp_combine = SEL_alias[i] +"."+ SEL_target[i];
@@ -673,14 +689,15 @@ void select (lua_State* L)
 				target_size.push_back(value);
 			}
 		}
-		/* Wondering why this cannot compile.
+		// Wondering why this cannot compile
+		struct Table *selecttable = new Table();
+		
 		if (target_list_combine.size()!=0){
-			auto selecttable = new_table(target_list_combine,target_size);
+			selecttable = new_table(target_list_combine,target_size);
 		}else{
-			auto selecttable = new_table(target_list,target_size);
+			selecttable = new_table(target_list,target_size);
 		}
-		*/
-		auto selecttable = new_table(target_list,target_size);
+
 		// Finding the indexing value and Doing the where condition's value transform
 		int target_list_number = target_list.size();
 		string attr_tmp_fir = where_condition_first_alias[0];
@@ -695,7 +712,6 @@ void select (lua_State* L)
 			convert_stoi >> compare_int_first;
 			convert_stoi.str("");
 			convert_stoi.clear();
-			cout <<"compare_int_first's number: "<< compare_int_first<< endl;
 		}
 		
 		if(value_sec == -1){
@@ -707,8 +723,10 @@ void select (lua_State* L)
 		
 		// Finding the index value and push back to index_i
 		if ( logical_op[0] == "OR"){
+			// The reason why I choose "set" is that it can prohibit the same value to be inserted.
 			set<int> index_i;
 			set<int> :: iterator index_it;
+			// find the indexing value which is corresponding to the first statement.
 			if (value_fir== -1){
 				if (op_flag_first == "eq"){
 					for ( it = currtable-> attrint_i[attr_tmp_fir].equal_range(compare_int_first).first; 
@@ -734,14 +752,13 @@ void select (lua_State* L)
 						  }
 				}
 			}
-			
+			// insert the value which is corresponding to the second statement.
 			if (value_sec == -1){
 				if (op_flag_second == "eq"){
 					for ( it = currtable-> attrint_i[attr_tmp_sec].equal_range(compare_int_second).first; 
 						  it !=currtable-> attrint_i[attr_tmp_sec].equal_range(compare_int_second).second; ++it ){
 							  index_i.insert((*it).second);
 						  }
-					index_i.insert(currtable-> attrint_i[attr_tmp_sec].find(compare_int_second)->second);
 				}else if (op_flag_second == "gt"){
 					
 					itlow = currtable-> attrint_i[attr_tmp_sec].lower_bound(compare_int_second+1);
@@ -749,14 +766,12 @@ void select (lua_State* L)
 						index_i.insert((*it).second);
 					}
 				}else {
-					cout <<"compare_int_second's number :" << compare_int_second << endl;
 					itup = currtable-> attrint_i[attr_tmp_sec].upper_bound(compare_int_second-1);
 					for (it = currtable-> attrint_i[attr_tmp_sec].begin();it!=itup; ++it){
 						index_i.insert((*it).second);
 					}
 				}
 			}else {
-				cout << "attr_tmp_sec's name :" << attr_tmp_sec<<endl;
 				if (op_flag_second == "eq"){
 					for ( it_var = currtable-> attrvar_i[attr_tmp_sec].equal_range(compare_alias_char_second[0]).first; 
 						  it_var !=currtable-> attrvar_i[attr_tmp_sec].equal_range(compare_alias_char_second[0]).second; ++it_var ){
@@ -792,31 +807,114 @@ void select (lua_State* L)
 				}
 			}
 		}
-		//else if ( logical_op[0] == "AND"){
+		else if ( logical_op[0] == "AND"){
+			set<int> index_i_tmp;
+			set<int> index_i;
+			set<int> :: iterator index_it;
+			set<int> :: iterator it_test;
+			// find the indexing value which is corresponding to the first statement.
 			
-		//}
-		
-		
-		
-		
-		
-		
-		
-		
+			if (value_fir== -1){
+				if (op_flag_first == "eq"){
+					for ( it = currtable-> attrint_i[attr_tmp_fir].equal_range(compare_int_first).first; 
+						  it !=currtable-> attrint_i[attr_tmp_fir].equal_range(compare_int_first).second; ++it ){
+							  index_i_tmp.insert((*it).second);
+						  }
+				}else if (op_flag_first == "gt"){
+					itlow = currtable-> attrint_i[attr_tmp_fir].lower_bound(compare_int_first+1);
+					for (it = itlow; it!=currtable-> attrint_i[attr_tmp_fir].end();++it){
+						index_i_tmp.insert((*it).second);
+					}
+				}else {
+					itup = currtable-> attrint_i[attr_tmp_fir].upper_bound(compare_int_first-1);
+					for (it = currtable-> attrint_i[attr_tmp_fir].begin();it!=itup; ++it){
+						index_i_tmp.insert((*it).second);
+					}
+				}
+			}else{
+				if (op_flag_first == "eq"){
+					for ( it_var = currtable-> attrvar_i[attr_tmp_fir].equal_range(compare_alias_char_first[0]).first; 
+						  it_var !=currtable-> attrvar_i[attr_tmp_fir].equal_range(compare_alias_char_first[0]).second; ++it_var )
+					{
+						index_i_tmp.insert((*it_var).second);
+					}
+				}
+			}
+			//If we can find the indexing value which is corresponding to the second statement and is exist in index_i_tmp, 
+			//we insert the value to insert_i.
+
+			if (value_sec == -1){
+				if (op_flag_second == "eq"){
+					for ( it = currtable-> attrint_i[attr_tmp_sec].equal_range(compare_int_second).first; 
+						  it !=currtable-> attrint_i[attr_tmp_sec].equal_range(compare_int_second).second; ++it ){
+							  if (index_i_tmp.find((*it).second)!= index_i_tmp.end()){
+								  index_i.insert((*it).second);
+							  }
+						  }
+				}else if (op_flag_second == "gt"){
+					itlow = currtable-> attrint_i[attr_tmp_sec].lower_bound(compare_int_second+1);
+					for (it = itlow; it!=currtable-> attrint_i[attr_tmp_sec].end();++it){
+						if (index_i_tmp.find((*it).second)!= index_i_tmp.end()){
+							index_i.insert((*it).second);
+						}
+					}
+				}else {
+					itup = currtable-> attrint_i[attr_tmp_sec].upper_bound(compare_int_second-1);
+					for (it = currtable-> attrint_i[attr_tmp_sec].begin();it!=itup; ++it){
+						if (index_i_tmp.find((*it).second)!= index_i_tmp.end()){
+							index_i.insert((*it).second);
+						}
+					}
+				}
+			}else{
+				if (op_flag_second == "eq"){
+					for ( it_var = currtable-> attrvar_i[attr_tmp_sec].equal_range(compare_alias_char_second[0]).first; 
+						  it_var !=currtable-> attrvar_i[attr_tmp_sec].equal_range(compare_alias_char_second[0]).second; ++it_var )
+					{
+						if (index_i_tmp.find((*it_var).second) != index_i_tmp.end()){
+							index_i.insert((*it_var).second);
+						}
+					}
+				}
+			}
+			
+			// Print the table
+			int target_number = target_size.size();
+			int index_number = index_i.size();
+			for (index_it=index_i.begin(); index_it!= index_i.end(); ++index_it){
+				for (int i=0;i<target_number;i++){
+					auto tmp = target_list[i];
+					int value = target_size[i];
+					if (value== -1){
+						tmp_i = currtable->attrint[tmp];
+						int tmp_index = *index_it;
+						int_v.push_back(tmp_i[tmp_index]);
+					}else {
+						tmp_v = currtable->attrvar[tmp];
+						int tmp_index = *index_it;
+						str_v.push_back(tmp_v[tmp_index]);
+					}
+				}
+				new_row(selecttable, int_v, str_v);
+				for (int i=0;i<target_number;i++){
+					int value = target_size[i];
+					if (value == -1){
+						int_v.pop_front();
+					}else{
+						str_v.pop_front();
+					}
+				}
+			}
+		}
 		
 		print_table(selecttable);
+		// Clear the element in the convert_stoi
+		convert_stoi.str("");
+		convert_stoi.clear();
 		
 	}
-
-	
-	
-	
-	
-	
-	
 	
 }
-
 
 
 
